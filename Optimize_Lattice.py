@@ -23,7 +23,10 @@ lam = float (lam)
 print('timesteps')
 timesteps = input()
 timesteps = int(timesteps)
-
+print('nruns')
+nruns=input()
+nruns=int(nruns)
+import matplotlib.colors as mcolors
 
 
 
@@ -51,14 +54,9 @@ def create_lattice(size, perc):
         #infection?
         #if randomizer[2] < lam/(1+lam):
         inflist=np.append(inflist, j)  
-        trace = np.array([0, 1], dtype=float)
+        trace = np.array(1, dtype=int)
         t=0
     return lattice, inflist, trace, t
-
-
-adj, infection_list, ninfected, time = create_lattice(n, p)
-print('matrix ready')
-
 
 def step(inflist, infrate, lattice, size, trace, t):
     if (inflist.size > 1):
@@ -84,19 +82,19 @@ def step(inflist, infrate, lattice, size, trace, t):
                                inflist=np.append(inflist, inflist[i]+1)
                         elif inflist[i]-(size-1) not in inflist:
                             inflist=np.append(inflist, inflist[i]-(size-1))
-                    if infection==1:
+                    elif infection==1:
                         if inflist[i] < (size*(size-1)):
                            if inflist[i]+size not in inflist:
                                 inflist=np.append(inflist, inflist[i]+size)
                         elif inflist[i]-size*(size-1) not in inflist:
                             inflist=np.append(inflist, inflist[i]-size*(size-1))
-                    if infection==2:
+                    elif infection==2:
                         if inflist[i]% size != 0: 
                             if inflist[i]-1 not in inflist:
                                 inflist=np.append(inflist, inflist[i]-1)
                         elif inflist[i]+size-1 not in inflist:
                             inflist=np.append(inflist, inflist[i]+size-1)
-                    if infection==3:
+                    elif infection==3:
                         if inflist[i]>size-1: 
                             if inflist[i]-size not in inflist:
                                 inflist=np.append(inflist, inflist[i]-size)
@@ -106,27 +104,69 @@ def step(inflist, infrate, lattice, size, trace, t):
                     #inflist=np.append(inflist, infection)
                         #print ('infect site ' + str(infection))
                     #else: print('already infected ' +str(infection) )
-            trace = np.append(trace, [float(trace[2*t]) + 1/inflist.size , (inflist.size-1)/(size**2)])
-            t+=1
+            t+=1/inflist.size
+            if t >= trace.size :
+                trace = np.append(trace,(inflist.size-1)/(size**2))
+    else:
+        trace = np.append(trace,(inflist.size-1)/(size**2))
     return inflist, trace, t
 
-for k in range(timesteps):
-    print(k)
-    infection_list, ninfected, time=step(infection_list, lam, adj, n , ninfected, time)
+def cycle(inflist, infrate, lattice, size, trace, t, duration):
+    for k in range(duration):
+        inflist, trace, t=step(inflist, infrate, lattice, size , trace, t)
+        print(k)
+    return  trace
 
+def simulation(size, perc, infrate, duration, numruns):
+    s = {}
+    tlength = np.zeros(numruns)
+    for trial in prange(numruns):
+        lattice, inflist, trace, t = create_lattice(size, perc)
+        trace = cycle(inflist, infrate, lattice, size, trace, t, duration)
+        s[trial]=trace
+        tlength[trial]=trace.size
+    return s, tlength
 
-print(infection_list)
+def plotmany(manyruns, numruns):
+    fig = plt.figure(figsize = (5,5))
+    colors=list(mcolors.TABLEAU_COLORS)
+    for trial in range (numruns):
+        plt.plot( manyruns[trial] , c = colors[trial], marker = ".", linestyle = "None", label = "trial " + str(trial), markersize = 3)
+    plt.xlabel("t (MC steps)", size = 12)
+    plt.ylabel("counts", size = 12)
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.legend(fontsize = 12, markerscale = 2)
+    plt.grid(alpha = 0.5, linestyle = "--")
+    plt.title("Size " + str(n) + "p= " + str(p) + "lambda " + str(lam))
+    fig.savefig("Graphs/Multirun/" "Size " + str(n) + "p= " + str(p) + "lambda " + str(lam) + "steps " + str(timesteps) + str(numruns) + " runs.jpg", transparent = True, bbox_inches = 'tight', pad_inches = 0)
+    fig.savefig("Graphs/Multirun/" "Size " + str(n) + "p= " + str(p) + "lambda " + str(lam) + "steps " + str(timesteps) + str(numruns) + " runs.pdf", transparent = True, bbox_inches = 'tight', pad_inches = 0)
 
+def plotav(manyruns, size, infrate, numruns):
+    shortest=min(size)
+    shortest=int(shortest)
+    average = np.zeros(shortest)
+    for i in range (shortest):
+        for j in range(numruns):
+            average[i]+=manyruns[j][i]
+    average=average/numruns
+    fig = plt.figure(figsize = (5,5))
+    plt.plot( average , c = 'red' , marker = ".", linestyle = "None", label = infrate, markersize = 3)
+    plt.xlabel("t (MC steps)", size = 12)
+    plt.ylabel("counts", size = 12)
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.legend(fontsize = 12, markerscale = 2)
+    plt.grid(alpha = 0.5, linestyle = "--")
+    plt.title("Size " + str(n) + "p= " + str(p) + "lambda " + str(lam))
+    fig.savefig(  "Graphs/Averages/" "Size " + str(n) + "p= " + str(p) + "lambda " + str(lam) + "steps " + str(timesteps) + " average " + str(numruns) + " runs.jpg", transparent = True, bbox_inches = 'tight', pad_inches = 0)
+    fig.savefig(  "Graphs/Averages/" "Size " + str(n) + "p= " + str(p) + "lambda " + str(lam) + "steps " + str(timesteps) + " average " + str(numruns) + " runs.pdf", transparent = True, bbox_inches = 'tight', pad_inches = 0)
 
-ninfected=np.reshape(ninfected, ( int(ninfected.size/2), 2))
+samples, triallength = simulation(n, p, lam, timesteps, nruns)
 
-fig = plt.figure(figsize = (5,5))
-plt.plot(ninfected[:, 0], ninfected[:, 1] , c = "red", marker = ".", linestyle = "None", label = "Infected", markersize = 3)
-plt.xlabel("t (MC steps)", size = 12)
-plt.ylabel("counts", size = 12)
-plt.legend(fontsize = 12, markerscale = 2)
-plt.grid(alpha = 0.5, linestyle = "--")
-fig.savefig("Size " + str(n) + "p= " + str(p) + "lambda " + str(lam) + "steps " + str(timesteps) + " one run.jpg", transparent = True, bbox_inches = 'tight', pad_inches = 0)
+plotmany(samples, nruns)
+
+plotav(samples, triallength, lam, nruns)
 
 #The next function would help me count the number of bonds left. My method produces good enough results for large n
 #print (a.getnnz())
